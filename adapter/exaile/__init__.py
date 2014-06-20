@@ -27,7 +27,7 @@ from __future__ import with_statement
 import os.path
 import re
 
-import gobject
+from gi.repository import GConf, GObject
 
 import xl.event
 import xl.settings
@@ -142,19 +142,19 @@ class ExaileAdapter(remuco.PlayerAdapter):
             self.__ex.queue.play()
             
         # when playing after stopped, the 'playback_player_start' is missed
-        gobject.idle_add(self.__update_playback)
+        GObject.idle_add(self.__update_playback)
             
     def ctrl_toggle_repeat(self):
         
         repeat = not self.__ex.queue.current_playlist.is_repeat()
         self.__ex.queue.current_playlist.set_repeat(repeat)
-        gobject.idle_add(self.__update_repeat_and_shuffle)
+        GObject.idle_add(self.__update_repeat_and_shuffle)
     
     def ctrl_toggle_shuffle(self):
         
         shuffle = not self.__ex.queue.current_playlist.is_random()
         self.__ex.queue.current_playlist.set_random(shuffle)
-        gobject.idle_add(self.__update_repeat_and_shuffle)
+        GObject.idle_add(self.__update_repeat_and_shuffle)
     
     def ctrl_next(self):
         """Play the next item. 
@@ -205,7 +205,7 @@ class ExaileAdapter(remuco.PlayerAdapter):
         
         self.__ex.player.seek(pos)
         
-        gobject.idle_add(self.__update_progress)
+        GObject.idle_add(self.__update_progress)
     
     def ctrl_rate(self, rating):
         
@@ -225,7 +225,7 @@ class ExaileAdapter(remuco.PlayerAdapter):
             volume = max(volume, 0)
             self.__ex.player.set_volume(volume)
             
-        gobject.idle_add(self.__update_volume)
+        GObject.idle_add(self.__update_volume)
         
     # =========================================================================
     # request interface

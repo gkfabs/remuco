@@ -24,8 +24,9 @@ import socket
 import struct
 import time
 
-import bluetooth
-import gobject
+# disable temporary do not commit
+#import bluetooth
+from gi.repository import GConf, GObject
 
 from remuco import log
 from remuco import message
@@ -58,11 +59,11 @@ def build_message(id, serializable):
             log.warning("failed to serialize (msg-id %d)" % id)
             return None
     else:
-        ba = ""
+        ba = b''
     
     header = struct.pack("!hi", id, len(ba))
     
-    return "%s%s" % (header, ba)
+    return header + ba
 
 class ReceiveBuffer(object):
     """ A box to pool some receive buffer related data. """
@@ -78,10 +79,10 @@ class ClientConnection(object):
     IO_HEADER_LEN = 6
     IO_MSG_MAX_SIZE = 10240 # prevent DOS
     
-    IO_PREFIX = '\xff\xff\xff\xff'
-    IO_SUFFIX = '\xfe\xfe\xfe\xfe'
-    IO_PROTO_VERSION = '\x0a'
-    IO_HELLO = "%s%s%s" % (IO_PREFIX, IO_PROTO_VERSION, IO_SUFFIX) # hello msg
+    IO_PREFIX = b'\xff\xff\xff\xff'
+    IO_SUFFIX = b'\xfe\xfe\xfe\xfe'
+    IO_PROTO_VERSION = b'\x0a'
+    IO_HELLO = IO_PREFIX + IO_PROTO_VERSION + IO_SUFFIX # hello msg
     
     def __init__(self, sock, addr, clients, pinfo_msg, msg_handler_fn, c_type):
         
@@ -103,13 +104,13 @@ class ClientConnection(object):
         self.__rcv_msg_id = message.IGNORE
         self.__rcv_msg_size = 0
         
-        self.__snd_buff = "" # buffer for outgoing data
+        self.__snd_buff = b'' # buffer for outgoing data
         
         # source IDs for various events
         self.__sids = [
-            gobject.io_add_watch(self.__sock, gobject.IO_IN, self.__io_recv),
-            gobject.io_add_watch(self.__sock, gobject.IO_ERR, self.__io_error),
-            gobject.io_add_watch(self.__sock, gobject.IO_HUP, self.__io_hup)
+            GObject.io_add_watch(self.__sock, GObject.IO_IN, self.__io_recv),
+            GObject.io_add_watch(self.__sock, GObject.IO_ERR, self.__io_error),
+            GObject.io_add_watch(self.__sock, GObject.IO_HUP, self.__io_hup)
             ]
         self.__sid_out = 0
         
@@ -136,11 +137,11 @@ class ClientConnection(object):
         try:
             log.debug("try to receive %d bytes" % rcv_buff.rest)
             data = self.__sock.recv(rcv_buff.rest)
-        except socket.timeout, e: # TODO: needed?
+        except socket.timeout as e: # TODO: needed?
             log.warning("connection to %s broken (%s)" % (self, e))
             self.disconnect()
             return False
-        except socket.error, e:
+        except socket.error as e:
             log.warning("connection to %s broken (%s)" % (self, e))
             self.disconnect()
             return False
@@ -154,7 +155,7 @@ class ClientConnection(object):
             self.disconnect()
             return False
         
-        rcv_buff.data = "%s%s" % (rcv_buff.data, data)
+        rcv_buff.data = rcv_buff.data + data
         rcv_buff.rest -= received
         
         return True
@@ -172,9 +173,9 @@ class ClientConnection(object):
             self.__rcv_msg_id = message.IGNORE
             self.__rcv_msg_size = 0 # will be set later
             
-            self.__rcv_buff_header.data = ""
+            self.__rcv_buff_header.data = b''
             self.__rcv_buff_header.rest = ClientConnection.IO_HEADER_LEN
-            self.__rcv_buff_data.data = ""
+            self.__rcv_buff_data.data = b''
             self.__rcv_buff_data.rest = 0 # will be set later
     
         # --- receive header --------------------------------------------------
@@ -277,7 +278,7 @@ class ClientConnection(object):
 
         try:
             sent = self.__sock.send(self.__snd_buff)
-        except socket.error, e:
+        except socket.error as e:
             log.warning("failed to send data to %s (%s)" % (self, e))
             self.disconnect()
             return False
@@ -320,12 +321,12 @@ class ClientConnection(object):
             log.debug("%s is in sleep mode, send nothing" % self)
             return
 
-        self.__snd_buff = "%s%s" % (self.__snd_buff, msg)
+        self.__snd_buff = self.__snd_buff + msg
         
         # if not already trying to send data ..
         if self.__sid_out == 0:
             # .. do it when it is possible:
-            self.__sid_out = gobject.io_add_watch(self.__sock, gobject.IO_OUT,
+            self.__sid_out = GObject.io_add_watch(self.__sock, GObject.IO_OUT,
                                                   self.__io_send)
         
     def disconnect(self, remove_from_list=True, send_bye_msg=False):
@@ -347,7 +348,7 @@ class ClientConnection(object):
             while sent < len(msg) and retry < 10:
                 try:
                     sent += self.__sock.send(msg)
-                except socket.error, e:
+                except socket.error as e:
                     log.warning("failed to send 'bye' to %s (%s)" % (self, e))
                     break
                 time.sleep(0.02)
@@ -366,18 +367,18 @@ class ClientConnection(object):
             self.__clients.remove(self)
         
         for sid in self.__sids:
-            gobject.source_remove(sid)
+            GObject.source_remove(sid)
         
         self.__sids = ()
 
         if (self.__sid_out > 0):
-            gobject.source_remove(self.__sid_out)
+            GObject.source_remove(self.__sid_out)
             self.__sid_out = 0
         
         if self.__sock is not None:
             try:
                 self.__sock.shutdown(socket.SHUT_RDWR)
-            except socket.error, e:
+            except socket.error as e:
                 pass
             self.__sock.close()
             self.__sock = None
@@ -413,7 +414,7 @@ class _Server(object):
         try:
             self._sock = self._create_socket()
             self._sock.settimeout(_Server.SOCKET_TIMEOUT)
-        except (IOError, socket.error), e:
+        except (IOError, socket.error) as e:
             # TODO: socket.error may be removed when 2.5 support is dropped
             log.error("failed to set up %s server (%s)" % (self._get_type(), e))
             return
@@ -422,8 +423,8 @@ class _Server(object):
         
         # watch socket
         
-        self.__sid = gobject.io_add_watch(self._sock,
-            gobject.IO_IN | gobject.IO_ERR | gobject.IO_HUP, self.__handle_io)
+        self.__sid = GObject.io_add_watch(self._sock,
+            GObject.IO_IN | GObject.IO_ERR | GObject.IO_HUP, self.__handle_io)
         
     #==========================================================================
     # io
@@ -432,7 +433,7 @@ class _Server(object):
     def __handle_io(self, fd, condition):
         """ GObject callback function (when there is a socket event). """
         
-        if condition == gobject.IO_IN:
+        if condition == GObject.IO_IN:
             
             try:
                 log.debug("connection request from %s client" % self._get_type())
@@ -442,7 +443,7 @@ class _Server(object):
                 ClientConnection(client_sock, addr, self.__clients,
                                  self.__pinfo_msg, self.__msg_handler_fn,
                                  self._get_type())
-            except IOError, e:
+            except IOError as e:
                 log.error("accepting %s client failed: %s" %
                           (self._get_type(), e))
             
@@ -458,7 +459,7 @@ class _Server(object):
         """ Shut down the server. """
         
         if self.__sid is not None:
-            gobject.source_remove(self.__sid) 
+            GObject.source_remove(self.__sid) 
 
         if self._sock is not None:
             log.debug("closing %s server socket" % self._get_type())
@@ -485,44 +486,44 @@ class _Server(object):
         """Get server type name."""
         raise NotImplementedError
     
-class BluetoothServer(_Server):
-    
-    UUID = "025fe2ae-0762-4bed-90f2-d8d778f020fe"
-
-    def _create_socket(self):
-        
-        try:
-            sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-            sock.bind(("", self._config.bluetooth_channel or bluetooth.PORT_ANY))
-            sock.listen(1)
-            sock.settimeout(0.33)
-            bluetooth.advertise_service(sock, self._pinfo.name,
-                service_id=BluetoothServer.UUID,
-                service_classes=[BluetoothServer.UUID, bluetooth.SERIAL_PORT_CLASS],
-                profiles=[bluetooth.SERIAL_PORT_PROFILE])
-        except Exception, e:
-            # bluez does not always convert its internal error into a
-            # IOError-based BluetoothError, so we need to catch here everything
-            # and convert internal Bluetooth errors to regular IO errors.
-            if isinstance(e, IOError):
-                raise e
-            else:
-                raise IOError(*e)
-        
-        return sock
-        
-    def down(self):
-        
-        if self._sock is not None:
-            try:
-                bluetooth.stop_advertising(self._sock)
-            except bluetooth.BluetoothError, e:
-                log.warning("failed to unregister bluetooth service (%s)" % e)
-        
-        super(BluetoothServer, self).down()
-        
-    def _get_type(self):
-        return "bluetooth"
+#class BluetoothServer(_Server):
+#    
+#    UUID = "025fe2ae-0762-4bed-90f2-d8d778f020fe"
+#
+#    def _create_socket(self):
+#        
+#        try:
+#            sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+#            sock.bind(("", self._config.bluetooth_channel or bluetooth.PORT_ANY))
+#            sock.listen(1)
+#            sock.settimeout(0.33)
+#            bluetooth.advertise_service(sock, self._pinfo.name,
+#                service_id=BluetoothServer.UUID,
+#                service_classes=[BluetoothServer.UUID, bluetooth.SERIAL_PORT_CLASS],
+#                profiles=[bluetooth.SERIAL_PORT_PROFILE])
+#        except Exception as e:
+#            # bluez does not always convert its internal error into a
+#            # IOError-based BluetoothError, so we need to catch here everything
+#            # and convert internal Bluetooth errors to regular IO errors.
+#            if isinstance(e, IOError):
+#                raise e
+#            else:
+#                raise IOError(*e)
+#        
+#        return sock
+#        
+#    def down(self):
+#        
+#        if self._sock is not None:
+#            try:
+#                bluetooth.stop_advertising(self._sock)
+#            except bluetooth.BluetoothError as e:
+#                log.warning("failed to unregister bluetooth service (%s)" % e)
+#        
+#        super(BluetoothServer, self).down()
+#        
+#    def _get_type(self):
+#        return "bluetooth"
                 
 class WifiServer(_Server):
     

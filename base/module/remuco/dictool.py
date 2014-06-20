@@ -88,7 +88,7 @@ def read_dicts_from_file(filename, flat=False, keys=None):
         fp = open(filename, "r")
         lines = fp.readlines()
         fp.close()
-    except IOError, e:
+    except IOError as e:
         log.warning("failed to open %s (%s)" % (filename, e))
     
     dicts_flat = []
@@ -126,13 +126,13 @@ def write_dicts_to_file(filename, dicts, keys=None, comment=None):
         lines.append("%s\n" % comment)
         
     for dic in dicts:
-        if not isinstance(dic, basestring):
+        if not isinstance(dic, str):
             dic = dict_to_string(dic, keys=keys)
         lines.append("%s\n" % dic)
         
     try:
         with open(filename, "w") as fp:
             fp.writelines(lines)
-    except IOError, e:
+    except IOError as e:
         log.warning("failed to write to %s (%s)" % (filename, e))
     

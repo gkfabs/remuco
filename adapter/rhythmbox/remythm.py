@@ -23,29 +23,43 @@
 """Rhythmbox player adapter for Remuco, implemented as a Rhythmbox plugin."""
 
 import time
+import dbus
+from dbus.exceptions import DBusException
 
-import gconf
-import gobject
+from gi.repository import GConf, GObject, Peas
+from gi.repository import RB
 
-import rb, rhythmdb
+import rb
 
 import remuco
 from remuco import log
 
 # =============================================================================
+# rhythmbox dbus names
+# =============================================================================
+
+DBUS_NAME = "org.mpris.MediaPlayer2.rhythmbox"
+DBUS_PATH = "/org/mpris/MediaPlayer2"
+DBUS_IFACE = "org.mpris.MediaPlayer2.Player"
+DBUS_IFACE_PROPS = "org.freedesktop.DBus.Properties"
+
+# =============================================================================
 # plugin
 # =============================================================================
 
-class RemucoPlugin(rb.Plugin):
+class RemucoPlugin(GObject.Object, Peas.Activatable):
+    object = GObject.property (type = GObject.Object)
     
     def __init__(self):
         
-        rb.Plugin.__init__(self)
+        GObject.Object.__init__(self)
         
         self.__rba = None
         
-    def activate(self, shell):
+    def do_activate(self):
         
+        shell = self.object
+
         if self.__rba is not None:
             return
         
@@ -57,7 +71,9 @@ class RemucoPlugin(rb.Plugin):
         self.__rba.start(shell)
         print("RhythmboxAdapter started")
         
-    def deactivate(self, shell):
+    def do_deactivate(self):
+
+        shell = self.object
     
         if self.__rba is None:
             return
@@ -92,11 +108,11 @@ PLAYERORDER_TOGGLE_MAP_SHUFFLE = {
 }
 
 SEARCH_MASK = ("Any", "Artist", "Title", "Album", "Genre")
-SEARCH_PROPS = ("Any", rhythmdb.PROP_ARTIST, rhythmdb.PROP_TITLE,
-                rhythmdb.PROP_ALBUM, rhythmdb.PROP_GENRE)
-SEARCH_PROPS_ANY = (rhythmdb.PROP_ARTIST, rhythmdb.PROP_TITLE,
-                    rhythmdb.PROP_ALBUM, rhythmdb.PROP_GENRE,
-                    rhythmdb.PROP_LOCATION)
+SEARCH_PROPS = ("Any", RB.RhythmDBPropType.ARTIST, RB.RhythmDBPropType.TITLE,
+                RB.RhythmDBPropType.ALBUM, RB.RhythmDBPropType.GENRE)
+SEARCH_PROPS_ANY = (RB.RhythmDBPropType.ARTIST, RB.RhythmDBPropType.TITLE,
+                    RB.RhythmDBPropType.ALBUM, RB.RhythmDBPropType.GENRE,
+                    RB.RhythmDBPropType.LOCATION)
 
 # =============================================================================
 # actions
@@ -152,10 +168,10 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         
         self.__shell = shell
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
         
         # gconf is used to adjust repeat and shuffle
-        self.__gconf = gconf.client_get_default()
+        self.__gconf = GConf.Client.get_default()
         
         # shortcuts to RB data 
         
@@ -174,7 +190,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
 
         # state sync will happen by timeout
         # trigger item sync:
-        self.__notify_playing_uri_changed(sp, sp.get_playing_path()) # item sync
+        self.__notify_playing_uri_changed(sp, sp.get_playing_entry()) # item sync
         
         log.debug("start done")
 
@@ -187,7 +203,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
 
         # disconnect from shell player signals
 
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
 
         for sid in self.__signal_ids:
             sp.disconnect(sid)
@@ -203,7 +219,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         
     def poll(self):
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
         
         # check repeat and shuffle
         
@@ -217,15 +233,15 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         
         # check volume
 
-        volume = int(sp.get_volume() * 100)
+        volume = int(sp.get_volume()[1] * 100)
         self.update_volume(volume)
         
         # check progress
         
         try:
-            progress = sp.get_playing_time()
+            progress = sp.get_playing_time()[1]
             length = sp.get_playing_song_duration()
-        except gobject.GError:
+        except GObject.GError:
             progress = 0
             length = 0 
         else:
@@ -237,22 +253,22 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
     
     def ctrl_next(self):
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
         
         try:
             sp.do_next()
-        except gobject.GError, e:
+        except GObject.GError as e:
             log.debug("do next failed: %s" % str(e))
     
     def ctrl_previous(self):
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
         
         try:
             sp.set_playing_time(0)
             time.sleep(0.1)
             sp.do_previous()
-        except gobject.GError, e:
+        except GObject.GError as e:
             log.debug("do previous failed: %s" % str(e))
     
     def ctrl_rate(self, rating):
@@ -260,71 +276,93 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         if self.__item_entry is not None:
             db = self.__shell.props.db
             try:
-                db.set(self.__item_entry, rhythmdb.PROP_RATING, rating)
-            except gobject.GError, e:
+                db.entry_set(self.__item_entry, RB.RhythmDBPropType.RATING, rating)
+            except GObject.GError as e:
                 log.debug("rating failed: %s" % str(e))
     
     def ctrl_toggle_playing(self):
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
         
         try:
-            sp.playpause()
-        except gobject.GError, e:
+            sp.playpause(True)
+        except GObject.GError as e:
             log.debug("toggle play pause failed: %s" % str(e))
                 
     def ctrl_toggle_repeat(self):
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
         
         now = sp.props.play_order
         
         next = PLAYERORDER_TOGGLE_MAP_REPEAT.get(now, now)
-            
-        self.__gconf.set_string("/apps/rhythmbox/state/play_order", next)
-    
+
+        prop = "None"
+        if next == PLAYORDER_REPEAT:
+            prop = "Playlist"
+
+        # Why dbus is so slow from rhythmbox plugin?
+        try:
+            bus = dbus.SessionBus()
+            proxy = bus.get_object(DBUS_NAME, DBUS_PATH)
+            bs = dbus.Interface(proxy, DBUS_IFACE_PROPS)
+            bs.Set(DBUS_IFACE, 'LoopStatus', prop)
+        except DBusException as e:
+            log.warning("dbus error: %s" % e)
+
         # update state within a short time (don't wait for scheduled poll)
-        gobject.idle_add(self.poll)
+        GObject.idle_add(self.poll)
         
     def ctrl_toggle_shuffle(self):
         
-        sp = self.__shell.get_player()
-        
+        sp = self.__shell.props.shell_player
+
         now = sp.props.play_order
         
         next = PLAYERORDER_TOGGLE_MAP_SHUFFLE.get(now, now)
-        
-        self.__gconf.set_string("/apps/rhythmbox/state/play_order", next)
-    
+
+        prop = False
+        if next == PLAYORDER_SHUFFLE or next == PLAYORDER_SHUFFLE_ALT:
+            prop = True
+
+        # Why dbus is so slow from rhythmbox plugin?
+        try:
+            bus = dbus.SessionBus()
+            proxy = bus.get_object(DBUS_NAME, DBUS_PATH)
+            bs = dbus.Interface(proxy, DBUS_IFACE_PROPS)
+            bs.Set(DBUS_IFACE, 'Shuffle', prop)
+        except DBusException as e:
+            raise StandardError("dbus error: %s" % e)
+
         # update state within a short time (don't wait for scheduled poll)
-        gobject.idle_add(self.poll)
+        GObject.idle_add(self.poll)
         
     def ctrl_seek(self, direction):
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
 
         try:
             sp.seek(direction * 5)
-        except gobject.GError, e:
+        except GObject.GError as e:
             log.debug("seek failed: %s" % str(e))
         else:
             # update volume within a short time (don't wait for scheduled poll)
-            gobject.idle_add(self.poll)    
+            GObject.idle_add(self.poll)    
     
     def ctrl_volume(self, direction):
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
         
         if direction == 0:
             sp.set_volume(0)
         else:
             try:
                 sp.set_volume_relative(direction * 0.05)
-            except gobject.GError, e:
+            except GObject.GError as e:
                 log.debug("set volume failed: %s" % str(e))
         
         # update volume within a short time (don't wait for scheduled poll)
-        gobject.idle_add(self.poll)
+        GObject.idle_add(self.poll)
         
     # =========================================================================
     # action interface
@@ -336,7 +374,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
             
             try:
                 self.__jump_in_plq(self.__playlist_sc, positions[0])
-            except gobject.GError, e:
+            except GObject.GError as e:
                 log.debug("playlist jump failed: %s" % e)
         
         elif action_id == IA_ENQUEUE.id:
@@ -352,7 +390,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
             
             try:
                 self.__jump_in_plq(self.__queue_sc, positions[0])
-            except gobject.GError, e:
+            except GObject.GError as e:
                 log.debug("queue jump failed: %s" % e)
     
         elif action_id == IA_REMOVE.id:
@@ -374,7 +412,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
             self.action_mlib_list(LA_PLAY.id, path)
             
             # delay jump, otherwise sync with clients sometimes fails
-            gobject.timeout_add(100, self.action_playlist_item, IA_JUMP.id,
+            GObject.timeout_add(100, self.action_playlist_item, IA_JUMP.id,
                                 positions, ids)
 
         else:
@@ -389,14 +427,14 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
                 log.warning("no source for path %s" % path)
                 return
             
-            sp = self.__shell.get_player()
+            sp = self.__shell.props.shell_player
     
             if sc != self.__playlist_sc:
                 try:
                     sp.set_selected_source(sc)
                     sp.set_playing_source(sc)
                     self.__jump_in_plq(sc, 0)
-                except gobject.GError, e:
+                except GObject.GError as e:
                     log.debug("switching source failed: %s" % str(e))
             
         else:
@@ -424,7 +462,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         try:
             qm = self.__playlist_sc.get_entry_view().props.model 
             reply.ids, reply.names = self.__get_item_list_from_qmodel(qm)
-        except gobject.GError, e:
+        except GObject.GError as e:
             log.warning("failed to get playlist items: %s" % e)
         
         reply.item_actions = PLAYLIST_ACTIONS
@@ -438,7 +476,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
 
         try:
             reply.ids, reply.names = self.__get_item_list_from_qmodel(qm)
-        except gobject.GError, e:
+        except GObject.GError as e:
             log.warning("failed to get queue items: %s" % e)
         
         reply.item_actions = QUEUE_ACTIONS
@@ -447,13 +485,13 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
 
     def request_mlib(self, reply, path):
 
-        slm = self.__shell.props.sourcelist_model
+        slm = self.__shell.props.library_source
         
         ### root ? ###
         
         if not path:
             for group in slm:
-                group_name = group[2]
+                group_name = group.props.name
                 reply.nested.append(group_name)
             reply.send()
             return
@@ -462,7 +500,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
 
         if len(path) == 1:
             for group in slm:
-                group_name = group[2]
+                group_name = group.props.name
                 if path[0] == group_name:
                     for sc in group.iterchildren():
                         source_name = sc[2]
@@ -490,7 +528,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
             
         try:
             reply.ids, reply.names = self.__get_item_list_from_qmodel(qm)
-        except gobject.GError, e:
+        except GObject.GError as e:
             log.warning("failed to list items: %s" % e)
         
         reply.item_actions = MLIB_ITEM_ACTIONS
@@ -507,7 +545,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
                 else:
                     props = [key]
                 for prop in props:
-                    val = db.entry_get(entry, prop).lower()
+                    val = entry.get_string(prop).lower()
                     if val.find(query_stripped[key]) >= 0:
                         break
                 else:
@@ -538,7 +576,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
     
     def __notify_playing_uri_changed(self, sp, uri):
         """Shell player signal callback to handle an item change."""
-        
+
         log.debug("playing uri changed: %s" % uri)
         
         db = self.__shell.props.db
@@ -547,7 +585,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         if entry is None:
             id = None
         else:
-            id = db.entry_get(entry, rhythmdb.PROP_LOCATION)
+            id = entry.get_string(RB.RhythmDBPropType.LOCATION)
         
         self.__item_id = id
         self.__item_entry = entry
@@ -563,7 +601,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
                 try:
                     img_file = "%s/rhythmbox.cover" % self.config.cache
                     img_data.save(img_file, "png")
-                except IOError, e:
+                except IOError as e:
                     log.warning("failed to save cover art (%s)" % e)
                     img_file = None
     
@@ -575,7 +613,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         self.update_item(id, info, img_file)
         
         # a new item may result in a new position:
-        pfq = self.__shell.get_player().props.playing_from_queue
+        pfq = self.__shell.props.shell_player.props.playing_from_queue
         self.update_position(self.__get_position(), queue=pfq)
 
     def __notify_playing_changed(self, sp, b):
@@ -616,7 +654,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         
         id_to_remove_from_queue = None
         
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
 
         if sp.props.playing_from_queue:
             id_to_remove_from_queue = self.__item_id
@@ -627,7 +665,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
             if i == position:
                 sp.set_selected_source(sc)
                 sp.set_playing_source(sc)
-                sp.play_entry(row[0])
+                sp.play_entry(row[0], sc)
                 found = True
                 break
             i += 1
@@ -666,10 +704,10 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         
         db = self.__shell.props.db
 
-        id = db.entry_get(entry, rhythmdb.PROP_LOCATION)
+        id = entry.get_string(RB.RhythmDBPropType.LOCATION)
         
-        artist = db.entry_get(entry, rhythmdb.PROP_ARTIST)
-        title = db.entry_get(entry, rhythmdb.PROP_TITLE)
+        artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
+        title = entry.get_string(RB.RhythmDBPropType.TITLE)
         
         if artist and title:
             name = "%s - %s" % (artist, title)
@@ -691,15 +729,15 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         db = self.__shell.props.db
         
         meta = {
-            remuco.INFO_TITLE : str(db.entry_get(entry, rhythmdb.PROP_TITLE)),
-            remuco.INFO_ARTIST: str(db.entry_get(entry, rhythmdb.PROP_ARTIST)),
-            remuco.INFO_ALBUM : str(db.entry_get(entry, rhythmdb.PROP_ALBUM)),
-            remuco.INFO_GENRE : str(db.entry_get(entry, rhythmdb.PROP_GENRE)),
-            remuco.INFO_BITRATE : str(db.entry_get(entry, rhythmdb.PROP_BITRATE)),
-            remuco.INFO_LENGTH : str(db.entry_get(entry, rhythmdb.PROP_DURATION)),
-            remuco.INFO_RATING : str(int(db.entry_get(entry, rhythmdb.PROP_RATING))),
-            remuco.INFO_TRACK : str(db.entry_get(entry, rhythmdb.PROP_TRACK_NUMBER)),
-            remuco.INFO_YEAR : str(db.entry_get(entry, rhythmdb.PROP_YEAR))
+            remuco.INFO_TITLE : str(entry.get_string(RB.RhythmDBPropType.TITLE)),
+            remuco.INFO_ARTIST: str(entry.get_string(RB.RhythmDBPropType.ARTIST)),
+            remuco.INFO_ALBUM : str(entry.get_string(RB.RhythmDBPropType.ALBUM)),
+            remuco.INFO_GENRE : str(entry.get_string(RB.RhythmDBPropType.GENRE)),
+            #remuco.INFO_BITRATE : str(entry.get_string(RB.RhythmDBPropType.BITRATE)),
+            #remuco.INFO_LENGTH : str(entry.get_string(RB.RhythmDBPropType.DURATION)),
+            #remuco.INFO_RATING : str(int(entry.get_ulong(RB.RhythmDBPropType.RATING))),
+            #remuco.INFO_TRACK : str(entry.get_string(RB.RhythmDBPropType.TRACK_NUMBER)),
+            #remuco.INFO_YEAR : str(entry.get_string(RB.RhythmDBPropType.YEAR))
         }
 
         return meta 
@@ -722,7 +760,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
         slm = self.__shell.props.sourcelist_model
         
         for group in slm:
-            if group_name == group[2]:
+            if group_name == group:
                 for source in group.iterchildren():
                     if source_name == source[2]:
                         return source[3]
@@ -734,7 +772,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
             
     def __get_position(self):
 
-        sp = self.__shell.get_player()
+        sp = self.__shell.props.shell_player
 
         db = self.__shell.props.db
 
@@ -753,7 +791,7 @@ class RhythmboxAdapter(remuco.PlayerAdapter):
                 
             if qmodel is not None:
                 for row in qmodel:
-                    id = db.entry_get(row[0], rhythmdb.PROP_LOCATION)
+                    id = row[0].get_string(RB.RhythmDBPropType.LOCATION)
                     if id_now == id:
                         break
                     position += 1

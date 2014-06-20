@@ -22,7 +22,8 @@
 
 """Remuco report handler."""
 
-import httplib
+import http
+from http import client
 import os
 import os.path
 import urllib
@@ -70,10 +71,10 @@ def __send_device(device):
     headers = {"Content-type": "application/x-www-form-urlencoded",
                "Accept": "text/plain"}
     try:
-        conn = httplib.HTTPConnection(__HOST)
+        conn = http.client.HTTPConnection(__HOST)
         conn.request("POST", __LOC, params, headers)
         response = conn.getresponse()
-    except IOError, e:
+    except IOError as e:
         return -1, str(e) 
     response.read() # needed ?
     conn.close()
@@ -94,9 +95,9 @@ def __send_devices():
         # add a simple watchword marking this report as a real one
         device["ww"] = "sun_is_shining"
         status, reason = __send_device(device)
-        if status != httplib.OK:
+        if status != http.client.OK:
             print("-> failed (%s - %s)" % (status, reason))
-            if status == httplib.NOT_FOUND:
+            if status == http.client.NOT_FOUND:
                 print("   the submission link I'm using may be outdated")
             ok = False
         else:

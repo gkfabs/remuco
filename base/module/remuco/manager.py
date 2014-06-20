@@ -24,7 +24,7 @@
 
 import signal
 
-import gobject
+from gi.repository import GConf, GObject
 
 from remuco import log
 
@@ -57,10 +57,10 @@ def _start_pa(pa):
     log.info("start player adapter")
     try:
         pa.start()
-    except StandardError, e:
+    except StandardError as e:
         log.error("failed to start player adapter (%s)" % e)
         return False
-    except Exception, e:
+    except Exception as e:
         log.exception("** BUG ** %s", e)
         return False
     else:
@@ -73,7 +73,7 @@ def _stop_pa(pa):
     log.info("stop player adapter")
     try:
         pa.stop()
-    except Exception, e:
+    except Exception as e:
         log.exception("** BUG ** %s", e)
     else:
         log.info("player adapter stopped")
@@ -101,9 +101,9 @@ class _PollingObserver():
         """
         self.__pa = pa
         self.__poll_fn = poll_fn
-        self.__sid = gobject.timeout_add(5123, self.__poll, False)
+        self.__sid = GObject.timeout_add(5123, self.__poll, False)
         
-        gobject.idle_add(self.__poll, True)
+        GObject.idle_add(self.__poll, True)
         
     def __poll(self, first):
         
@@ -118,7 +118,7 @@ class _PollingObserver():
         
     def stop(self):
         
-        gobject.source_remove(self.__sid)
+        GObject.source_remove(self.__sid)
 
 # =============================================================================
 # DBus Observer
@@ -148,14 +148,14 @@ class _DBusObserver():
         
         try:
             bus = dbus.SessionBus()
-        except DBusException, e:
+        except DBusException as e:
             log.error("no dbus session bus (%s)" % e)
             return
         
         try:
             proxy = bus.get_object(dbus.BUS_DAEMON_NAME, dbus.BUS_DAEMON_PATH)
             self.__dbus = dbus.Interface(proxy, dbus.BUS_DAEMON_IFACE)
-        except DBusException, e:
+        except DBusException as e:
             log.error("failed to connect to dbus daemon (%s)" % e)
             return
 
@@ -168,7 +168,7 @@ class _DBusObserver():
             self.__dbus.NameHasOwner(self.__dbus_name,
                                      reply_handler=self.__reply_has_owner,
                                      error_handler=self.__dbus_error)
-        except DBusException, e:
+        except DBusException as e:
             log.error("failed to talk with dbus daemon (%s)" % e)
             return
         
@@ -242,7 +242,7 @@ class Manager(object):
         
         global _ml
         if _ml is None:
-            _ml = gobject.MainLoop()
+            _ml = GObject.MainLoop()
             signal.signal(signal.SIGINT, _sighandler)
             signal.signal(signal.SIGTERM, _sighandler)
         self.__ml = _ml
@@ -282,7 +282,7 @@ class Manager(object):
             log.info("start main loop")
             try:
                 self.__ml.run()
-            except Exception, e:
+            except Exception as e:
                 log.exception("** BUG ** %s", e)
             else:
                 log.info("main loop stopped")

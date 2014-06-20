@@ -23,8 +23,8 @@
 """Data containers to send to and receive from clients."""
 
 import tempfile
-import Image
-import urlparse
+import PIL
+from PIL import Image
 import urllib
 
 from remuco import log
@@ -146,7 +146,7 @@ class Item(serial.Serializable):
             val = info_dict.get(key)
             if val is not None:
                 info_list.append(key)
-                if not isinstance(val, basestring):
+                if not isinstance(val, str):
                     val = str(val)
                 info_list.append(val)
                 
@@ -157,8 +157,8 @@ class Item(serial.Serializable):
         if img_size == 0:
             return []
     
-        if isinstance(img, basestring) and img.startswith("file://"):
-            img = urlparse.urlparse(img)[2]
+        if isinstance(img, str) and img.startswith("file://"):
+            img = urllib.parse.urlparse(img)[2]
             img = urllib.url2pathname(img)
             
         if not img:
@@ -176,7 +176,7 @@ class Item(serial.Serializable):
             thumb = file_tmp.read()
             file_tmp.close()
             return thumb
-        except IOError, e:
+        except IOError as e:
             log.warning("failed to thumbnail %s (%s)" % (img, e))
             return []
 

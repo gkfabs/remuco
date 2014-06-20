@@ -122,14 +122,14 @@ class FileSystemLibrary(object):
             nested.sort()
             return (nested, ids, names)
         
-        label = path[0] # root dir label
+        label = str(path[0], 'utf-8') # root dir label
         dir = self.__roots[label] # root dir
         path = path[1:] # path elements relative to root dir
         for elem in path:
-            dir = os.path.join(dir, elem)
+            dir = os.path.join(dir, str(elem, 'utf-8'))
             
         try:
-            x, dirs, files = os.walk(dir).next()
+            x, dirs, files = os.walk(dir).__next__()
         except StopIteration:
             return (nested, ids, names)
         

@@ -47,11 +47,11 @@ class Bin:
     
     def __init__(self, buff=None):
         
-        self.__data = buff or array.array('c')
+        self.__data = buff or array.array('b')
         self.__off = 0
         
     def get_buff(self):
-        if isinstance(self.__data, basestring):
+        if isinstance(self.__data, str):
             return self.__data
         elif isinstance(self.__data, array.array):
             return self.__data.tostring()
@@ -102,10 +102,10 @@ class Bin:
         if Bin.HOST_ENCODING not in Bin.NET_ENCODING_ALT:
             try:
                 s = unicode(s, Bin.NET_ENCODING).encode(Bin.HOST_ENCODING)
-            except UnicodeDecodeError, e:
+            except UnicodeDecodeError as e:
                 log.warning("could not decode '%s' with codec %s (%s)" %
                             (s, Bin.NET_ENCODING, e))
-            except UnicodeEncodeError, e:
+            except UnicodeEncodeError as e:
                 log.warning("could not encode '%s' with codec %s (%s)" %
                             (s, Bin.HOST_ENCODING, e))
                 
@@ -184,28 +184,28 @@ class Bin:
     def write_byte(self, y):
         
         if y is None: y = 0
-        self.__data.extend(' ' * 1)
+        self.__data.extend(b' ' * 1)
         struct.pack_into('b', self.__data, self.__off, y)
         self.__off += 1
 
     def write_short(self, n):
         
         if n is None: n = 0
-        self.__data.extend(' ' * 2)
+        self.__data.extend(b' ' * 2)
         struct.pack_into('!h', self.__data, self.__off, n)
         self.__off += 2
 
     def write_int(self, i):
         
         if i is None: i = 0
-        self.__data.extend(' ' * 4)
+        self.__data.extend(b' ' * 4)
         struct.pack_into('!i', self.__data, self.__off, i)
         self.__off += 4
 
     def write_long(self, l):
         
         if l is None: l = 0
-        self.__data.extend(' ' * 8)
+        self.__data.extend(b' ' * 8)
         struct.pack_into('!q', self.__data, self.__off, l)
         self.__off += 8
 
@@ -221,27 +221,18 @@ class Bin:
             self.__write_string(s)
             return
         
-        if isinstance(s, unicode):
-            
-            try:
-                s = s.encode(Bin.NET_ENCODING)
-            except UnicodeEncodeError, e:
-                log.warning("could not encode '%s' with codec %s (%s)" %
-                            (s, Bin.NET_ENCODING, e))
-                s = str(s)
-        
-        elif Bin.HOST_ENCODING not in Bin.NET_ENCODING_ALT:
+        if Bin.HOST_ENCODING not in Bin.NET_ENCODING_ALT:
             log.debug("convert '%s' from %s to %s" %
                       (s, Bin.HOST_ENCODING, Bin.NET_ENCODING))
             try:
                 s = unicode(s, Bin.HOST_ENCODING).encode(Bin.NET_ENCODING)
-            except UnicodeDecodeError, e:
+            except UnicodeDecodeError as e:
                 log.warning("could not decode '%s' with codec %s (%s)" %
                             (s, Bin.HOST_ENCODING, e))
-            except UnicodeEncodeError, e:
+            except UnicodeEncodeError as e:
                 log.warning("could not encode '%s' with codec %s (%s)" %
                             (s, Bin.NET_ENCODING, e))
-            
+        
         self.__write_string(s)
 
     def write_array_boolean(self, ba):
@@ -278,10 +269,10 @@ class Bin:
         """
         
         if s is None:
-            s = ""
+            s = b''
             
-        if not isinstance(s, basestring):
-            s = str(s)
+        if not isinstance(s, bytes):
+            s = s.encode(Bin.NET_ENCODING)
         
         l = len(s)
         
@@ -290,7 +281,7 @@ class Bin:
         else:
             self.write_short(l)
         
-        self.__data.extend(' ' * l)
+        self.__data.extend(b' ' * l)
         struct.pack_into('%ds' % l, self.__data, self.__off, s)
         self.__off += l
         
@@ -340,7 +331,6 @@ def pack(serializable):
         for i in range(0,len(fmt)):
             
             type = fmt[i]
-            
             bin.write_byte(type)
             
             if type == TYPE_Y:
@@ -395,7 +385,7 @@ def pack(serializable):
                 log.error("** BUG ** unknown type (%d) in format string" % type)
                 return None
         
-    except struct.error, e:
+    except struct.error as e:
         
         log.exception("** BUG ** %s" % e)
         
@@ -490,7 +480,7 @@ def unpack(serializable, bytes):
                 log.warning("bin data malformed (unknown data type: %d)" % type)
                 return None
         
-    except struct.error, e:
+    except struct.error as e:
         
         log.warning("bin data malformed (%s)" % e)
         

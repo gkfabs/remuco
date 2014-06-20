@@ -69,7 +69,7 @@ if linux:
     try:
         with open(opj(user_config_dir, "user-dirs.dirs")) as fp:
             _udc = fp.read()
-    except IOError, e:
+    except IOError as e:
         log.warning("failed to load user dirs config (%s)" % e)
         media_dirs["audio"] = ["~/Music"]
         media_dirs["video"] = ["~/Videos"]
@@ -118,7 +118,7 @@ if linux:
     
         try:
             bus = dbus.SessionBus()
-        except DBusException, e:
+        except DBusException as e:
             log.error("no dbus session bus (%s)" % e)
             return
         
@@ -126,13 +126,13 @@ if linux:
             proxy = bus.get_object("org.freedesktop.Notifications",
                                    "/org/freedesktop/Notifications")
             notid = dbus.Interface(proxy, "org.freedesktop.Notifications")
-        except DBusException, e:
+        except DBusException as e:
             log.error("failed to connect to notification daemon (%s)" % e)
             return
     
         try:
             caps = notid.GetCapabilities()
-        except DBusException, e:
+        except DBusException as e:
             return
         
         if not caps or "body-markup" not in caps:
@@ -141,7 +141,7 @@ if linux:
             
         try:
             notid.Notify("Remuco", 0, "phone", title, text, [], {}, 15)
-        except DBusException, e:
+        except DBusException as e:
             log.warning("user notification failed (%s)" % e)
             return
         
@@ -161,7 +161,7 @@ if linux:
     import dbus
     from dbus.mainloop.glib import DBusGMainLoop
     from dbus.exceptions import DBusException
-    import gobject
+    from gi.repository import GConf, GObject
     
     dbus.set_default_main_loop(DBusGMainLoop())
     
@@ -188,7 +188,7 @@ if linux:
             group.AddService(-1, -1, 0, "Remuco %s" % player, _ZC_TYPE, "local",
                              "", port, "")
             group.Commit()
-        except dbus.DBusException, e:
+        except dbus.DBusException as e:
             log.warning("failed to publish zeroconf service (%s)" % e)
             group = None
         else:
@@ -204,7 +204,7 @@ if linux:
         if _zc_group:
             try:
                 _zc_group.Reset()
-            except DBusException, e:
+            except DBusException as e:
                 log.warning("failed to unpublish zeroconf service (%s)" % e)
             _zc_group = None
     

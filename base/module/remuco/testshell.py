@@ -21,7 +21,7 @@
 # =============================================================================
 
 import signal
-import gobject
+from gi.repository import GConf, GObject
 import inspect
 
 _paref = None
@@ -67,7 +67,7 @@ def handler(signum, frame):
                     pass
 
             if idx >= 0 and idx < _cmdlist.__len__():
-                gobject.idle_add(_cmdlist[idx], *args)
+                GObject.idle_add(_cmdlist[idx], *args)
             else:
                 print('Invalid function')
         except ValueError:

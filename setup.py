@@ -111,7 +111,7 @@ PREFIX_RHYTHMBOX = os.getenv("PREFIX_RHYTHMBOX", "/usr/")
 pa_files["rhythmbox"] = [
     [],
     ("%s%s/rhythmbox/plugins/remuco" % (PREFIX_RHYTHMBOX, LIB_DIR),
-     ["remuco.rb-plugin", "remythm.py"])
+     ["remuco.plugin", "remythm.py"])
 ]
 
 # --- Songbird ------------------------------------------------------------------
@@ -190,7 +190,7 @@ else:
 scripts = []
 
 try:
-    x, dirs, files = os.walk("base/scripts").next()
+    x, dirs, files = os.walk("base/scripts").__next__()
 except StopIteration:
     pass
 

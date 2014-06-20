@@ -22,7 +22,7 @@
 
 import unittest
 
-import gobject
+from gi.repository import GConf, GObject
 
 import sys
 
@@ -34,7 +34,7 @@ class AdapterTest(unittest.TestCase):
 
     def setUp(self):
         
-        self.__ml = gobject.MainLoop()
+        self.__ml = GObject.MainLoop()
         
         ia = remuco.ItemAction("ia_l", multiple=True)
 
@@ -55,7 +55,7 @@ class AdapterTest(unittest.TestCase):
 
         self.__pa.start()
         
-        gobject.timeout_add(4000, self.__stop)
+        GObject.timeout_add(4000, self.__stop)
         
         self.__ml.run()
 

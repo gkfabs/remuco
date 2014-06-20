@@ -25,7 +25,7 @@ import hashlib
 import os.path
 import re
 import urllib
-import urlparse
+from urllib import parse
 
 from remuco import log
 from remuco.remos import user_home
@@ -50,16 +50,17 @@ def _try_thumbnail(resource):
         return None
     
     # we need a file://... URI
-    elems = urlparse.urlparse(resource)
+    elems = urllib.parse.urlparse(resource)
     if elems[0] and elems[0] != "file": # not local
         return None
     if not elems[0]: # resource is a path
         elems = list(elems) # make elems assignable
         elems[0] = "file"
-        if isinstance(resource, unicode):
-            resource = resource.encode("utf-8")
         elems[2] = urllib.pathname2url(resource)
-        resource = urlparse.urlunparse(elems)
+        resource = urllib.parse.urlunparse(elems)
+
+    if isinstance(resource, str):
+        resource = resource.encode("utf-8")
 
     hex = hashlib.md5(resource).hexdigest()
     for subdir in ("large", "normal"):
@@ -73,10 +74,10 @@ def _try_folder(resource):
     """Try to find an image in the resource's folder."""
     
     # we need a local path
-    elems = urlparse.urlparse(resource)
+    elems = urllib.parse.urlparse(resource)
     if elems[0] and elems[0] != "file": # resource is not local
         return None
-    rpath = elems[0] and urllib.url2pathname(elems[2]) or elems[2]
+    rpath = elems[0] and urllib.request.url2pathname(elems[2]) or elems[2]
     rpath = os.path.dirname(rpath)
     
     log.debug("looking for art image in %s" % rpath)

@@ -1,14 +1,15 @@
 import sys
 
 try:
-    import gobject
+    from gi.repository import GObject
     if sys.platform.startswith("linux"):
         import xdg.BaseDirectory
         import dbus
-    import Image
+    import PIL
     import logging
-    import bluetooth
-except ImportError, e:
+# disable temporary do not commit
+#    import bluetooth
+except ImportError as e:
     print("")
     print("+-----------------------------------------------------------------+")
     print("| Unsatisfied Python requirement: %s." % e)

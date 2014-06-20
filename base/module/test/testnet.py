@@ -22,7 +22,7 @@
 
 import unittest
 
-import gobject
+from gi.repository import GConf, GObject
 
 from remuco.data import PlayerInfo
 from remuco.net import WifiServer, BluetoothServer
@@ -33,7 +33,7 @@ class ServerTest(unittest.TestCase):
 
     def setUp(self):
         
-        self.__ml = gobject.MainLoop()
+        self.__ml = GObject.MainLoop()
         self.__pi = PlayerInfo("xxx", 0, 0, None, ["1", "2"])
         self.__config = Config("unittest")
 
@@ -41,7 +41,7 @@ class ServerTest(unittest.TestCase):
         
         s = WifiServer([], self.__pi, None, self.__config)
         
-        gobject.timeout_add(2000, self.__stop, s)
+        GObject.timeout_add(2000, self.__stop, s)
         
         self.__ml.run()
 
@@ -49,7 +49,7 @@ class ServerTest(unittest.TestCase):
         
         s = BluetoothServer([], self.__pi, None, self.__config)
         
-        gobject.timeout_add(2000, self.__stop, s)
+        GObject.timeout_add(2000, self.__stop, s)
         
         self.__ml.run()
 

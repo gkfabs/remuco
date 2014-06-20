@@ -22,7 +22,7 @@
 
 from __future__ import with_statement
 
-import ConfigParser
+import configparser
 from datetime import datetime
 from glob import glob
 import os
@@ -50,7 +50,7 @@ class _odict(dict):
     
     def items(self):
         il = list(super(_odict, self).items())
-        il.sort(cmp=lambda a,b: cmp(a[0], b[0]))
+        il.sort()
         return il
 
 # =============================================================================
@@ -168,25 +168,25 @@ class Config(object):
             try:
                 if not isdir(dname):
                     os.makedirs(dname)
-            except OSError, e:
+            except OSError as e:
                 log.error("failed to make dir: %s", e)
         if not "REMUCO_LOG_STDOUT" in os.environ and isdir(self.cache):
             log.set_file(join(self.cache, "%s.log" % self.player))
 
         # load
-        cp = ConfigParser.RawConfigParser(_DEFAULTS, _odict)
+        cp = configparser.RawConfigParser(_DEFAULTS, _odict)
         if not cp.has_section(self.player):
             cp.add_section(self.player)
         if exists(self.file):
             try:
                 cp.read(self.file)
-            except ConfigParser.Error, e:
+            except configparser.Error as e:
                 log.warning("failed to read config %s (%s)" % (self.file, e))
 
         # reset on version change
-        if cp.get(ConfigParser.DEFAULTSECT, "config-version") != _CONFIG_VERSION:
+        if cp.get(configparser.DEFAULTSECT, "config-version") != _CONFIG_VERSION:
             sections = cp.sections() # keep already existing player sections
-            cp = ConfigParser.RawConfigParser(_DEFAULTS, _odict)
+            cp = configparser.RawConfigParser(_DEFAULTS, _odict)
             for sec in sections:
                 cp.add_section(sec)
             if exists(self.file):
@@ -195,18 +195,18 @@ class Config(object):
                 shutil.copy(self.file, bak)
             
         # remove unknown options in all sections
-        for sec in cp.sections() + [ConfigParser.DEFAULTSECT]:
+        for sec in cp.sections() + [configparser.DEFAULTSECT]:
             for key, value in cp.items(sec):
                 if key not in _DEFAULTS and not key.startswith("x-"):
                     cp.remove_option(sec, key)
                     
         # add not yet existing options to default section
         for key, value in _DEFAULTS.items():
-            if not cp.has_option(ConfigParser.DEFAULTSECT, key):
-                cp.set(ConfigParser.DEFAULTSECT, key, value)
+            if not cp.has_option(configparser.DEFAULTSECT, key):
+                cp.set(configparser.DEFAULTSECT, key, value)
         
         # update version
-        cp.set(ConfigParser.DEFAULTSECT, "config-version", _CONFIG_VERSION)
+        cp.set(configparser.DEFAULTSECT, "config-version", _CONFIG_VERSION)
 
         self.__cp = cp
         
@@ -222,7 +222,7 @@ class Config(object):
         
         try:
             return super(Config, self).__getattribute__(attr)
-        except AttributeError, e:
+        except AttributeError as e:
             _attr = attr.replace("_", "-")
             if _attr in _OPTIONS:
                 attr = _attr
@@ -232,7 +232,7 @@ class Config(object):
             converter = _OPTIONS[attr][1] or (lambda v: v)
             try:
                 return converter(value)
-            except Exception, e:
+            except Exception as e:
                 log.error("malformed option '%s: %s' (%s)" % (attr, e))
                 return converter(_DEFAULTS[attr])
     
@@ -257,12 +257,12 @@ class Config(object):
             self.__save()
         try:
             value = self.__cp.get(self.player, key)
-        except ConfigParser.NoOptionError:
+        except configparser.NoOptionError:
             value = default
         converter = converter or (lambda v: v)
         try:
             return converter(value)
-        except Exception, e:
+        except Exception as e:
             log.error("malformed option '%s: %s' (%s)" % (key, value, e))
             return converter(default) # if this fails then, it's a bug
 
@@ -282,7 +282,7 @@ class Config(object):
                 fp.write(doc)
                 fp.write("\n\n")
                 self.__cp.write(fp)
-        except IOError, e:
+        except IOError as e:
             log.warning("failed to save config to %s (%s)" % (self.file, e))
 
     def __cleanup(self):

@@ -1,8 +1,8 @@
 import sys
 
 try:
-    import gconf
-except ImportError, e:
+    from gi.repository import GConf
+except ImportError as e:
     print("")
     print("+-----------------------------------------------------------------+")
     print("| Unsatisfied Python requirement: %s." % e)

@@ -20,15 +20,15 @@
 #
 # =============================================================================
 
-import commands
 import inspect
 import math # for ceiling
 import os
 import os.path
+import subprocess
 import urllib
-import urlparse
+from urllib import parse
 
-import gobject
+from gi.repository import GConf, GObject
 
 from remuco import art
 from remuco import config
@@ -132,7 +132,7 @@ class ListReply(object):
         
         msg = net.build_message(self.__reply_msg_id, ilist)
         
-        gobject.idle_add(self.__client.send, msg)
+        GObject.idle_add(self.__client.send, msg)
         
 
     # === property: ids ===
@@ -546,7 +546,7 @@ class PlayerAdapter(object):
         
         if self.__poll_ival > 0:
             log.debug("poll every %d milli seconds" % self.__poll_ival)
-            self.__poll_sid = gobject.timeout_add(self.__poll_ival, self.__poll)
+            self.__poll_sid = GObject.timeout_add(self.__poll_ival, self.__poll)
             
         
         log.debug("start done")
@@ -583,12 +583,12 @@ class PlayerAdapter(object):
             
         for sid in self.__sync_triggers.values():
             if sid is not None:
-                gobject.source_remove(sid)
+                GObject.source_remove(sid)
                 
         self.__sync_triggers = {}
 
         if self.__poll_sid > 0:
-            gobject.source_remove(self.__poll_sid)
+            GObject.source_remove(self.__poll_sid)
             
         log.debug("stop done")
     
@@ -781,18 +781,18 @@ class PlayerAdapter(object):
         else:
             cmd = self.config.master_volume_mute_cmd
         
-        ret, out = commands.getstatusoutput("sh -c '%s'" % cmd)
+        ret, out = subprocess.getstatusoutput("sh -c '%s'" % cmd)
         if ret != os.EX_OK:
             log.error("master-volume-... failed: %s" % out)
         else:
-            gobject.idle_add(self.__update_volume_master)
+            GObject.idle_add(self.__update_volume_master)
         
     def __ctrl_shutdown_system(self):
         
         if self.config.system_shutdown_enabled:
             log.debug("run system shutdown command")
             cmd = "sh -c '%s'" % self.config.system_shutdown_cmd
-            ret, out = commands.getstatusoutput(cmd)
+            ret, out = subprocess.getstatusoutput(cmd)
             if ret != os.EX_OK:
                 log.error("system-shutdown failed: %s" % out)
                 return
@@ -1107,7 +1107,7 @@ class PlayerAdapter(object):
         """Set the current volume (use custom command instead of player)."""
 
         cmd = "sh -c '%s'" % self.config.master_volume_get_cmd
-        ret, out = commands.getstatusoutput(cmd)
+        ret, out = subprocess.getstatusoutput(cmd)
         if ret != os.EX_OK:
             log.error("master-volume-get failed: '%s'" % out)
             return
@@ -1196,11 +1196,11 @@ class PlayerAdapter(object):
             return
         
         if sync_fn in self.__sync_triggers:
-            log.debug("trigger for %s already active" % sync_fn.func_name)
+            log.debug("trigger for %s already active" % sync_fn.__name__)
             return
         
         self.__sync_triggers[sync_fn] = \
-            gobject.idle_add(sync_fn, priority=gobject.PRIORITY_LOW)
+            GObject.idle_add(sync_fn, priority=GObject.PRIORITY_LOW)
         
     def __sync_state(self):
         
@@ -1444,7 +1444,7 @@ class PlayerAdapter(object):
         
         def file_to_uri(file):
             url = urllib.pathname2url(file)
-            return urlparse.urlunparse(("file", None, url, None, None, None))
+            return urllib.parse.urlunparse(("file", None, url, None, None, None))
         
         if not files:
             return []

@@ -68,7 +68,7 @@ def set_file(file):
     if file is not None:
         try:
             new_handler = logging.FileHandler(file, 'w')
-        except IOError, e:
+        except IOError as e:
             print("failed to set up log handler (%s)" % e)
             return
         new_handler.setFormatter(_config.FMT)

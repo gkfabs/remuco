@@ -27,7 +27,7 @@ import os
 import os.path
 import subprocess
 
-import gobject
+from gi.repository import GConf, GObject
 import totem
 
 import remuco
@@ -154,7 +154,7 @@ class TotemAdapter(remuco.PlayerAdapter):
         
         self.__to.action_play_pause()
         
-        gobject.idle_add(self.__poll_state)
+        GObject.idle_add(self.__poll_state)
     
     def ctrl_next(self):
         
@@ -176,14 +176,14 @@ class TotemAdapter(remuco.PlayerAdapter):
         except TypeError:
             self.__to.action_seek_relative(self.__seek_step * direction, False) # After accurate
         
-        gobject.idle_add(self.__poll_progress)
+        GObject.idle_add(self.__poll_progress)
 
         if direction < 0 and progress < self.__seek_step:
             return # no seek check
         
         if self.__css_sid == 0:
             # in 1.5 seconds, at least 3 x initial seek step should be elapsed:
-            self.__css_sid = gobject.timeout_add(1500, self.__check_seek_step,
+            self.__css_sid = GObject.timeout_add(1500, self.__check_seek_step,
                 progress, self.__seek_step_initial * 3, self.__seek_step + 5000)
         
     def ctrl_volume(self, direction):
@@ -201,7 +201,7 @@ class TotemAdapter(remuco.PlayerAdapter):
         
         self.__vw.set_property("volume", volume / 100.0)
         
-        gobject.idle_add(self.__poll_state)
+        GObject.idle_add(self.__poll_state)
         
     def ctrl_toggle_fullscreen(self):
         

@@ -1,7 +1,7 @@
-[RB Plugin]
-Loader=python
+[Plugin]
+Loader=python3
 Module=remythm
-IAge=1
+IAge=2
 Name=Remuco
 Description=Rhythmbox adapter for Remuco (and vice versa).
 Authors=Remuco team
